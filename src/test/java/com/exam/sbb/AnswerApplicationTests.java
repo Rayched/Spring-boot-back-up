@@ -16,8 +16,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
-
 
 @SpringBootTest
 public class AnswerApplicationTests {
@@ -29,6 +27,8 @@ public class AnswerApplicationTests {
 	private int lastSampleDataId;
 
 	@BeforeEach
+	@Transactional
+	@Rollback(false)
 	void beforeEach(){
 		clearData();
 		createSampleData();
@@ -42,6 +42,7 @@ public class AnswerApplicationTests {
 	private void createSampleData(){
 		QuestionApplicationTests.createSampleData(questionRepository);
 
+		//관련된 답변이 하나도 없는 상태에서 Query가 실행된다.
 		Question q = questionRepository.findById(1).get();
 
 		Answer a1 = new Answer();
@@ -50,15 +51,23 @@ public class AnswerApplicationTests {
 		a1.setCreateDate(LocalDateTime.now());
 		answerRepository.save(a1);
 
+		q.getAnswerList().add(a1);
+
 		Answer a2 = new Answer();
 		a2.setContent("sbb에서는 주로 스프링 관련 내용을 다룹니다.");
 		a2.setQuestion(q); //어떤 질문의 답변인지 파악하기 위해서 Question 객체가 필요함.
 		a2.setCreateDate(LocalDateTime.now());
 		answerRepository.save(a2);
+
+		q.getAnswerList().add(a2);
+
+		questionRepository.save(q);
 	}
 
 	//답변 저장
 	@Test
+	@Transactional
+	@Rollback(false)
 	void DataSave(){
 		Question q = questionRepository.findById(2).get();
 
@@ -66,11 +75,14 @@ public class AnswerApplicationTests {
 		a.setContent("네, 자동으로 생성됩니다.");
 		a.setQuestion(q); //어떤 질문의 답변인지 파악하기 위해서 Question 객체가 필요함.
 		a.setCreateDate(LocalDateTime.now());
+		q.addAnswer(a);
 		answerRepository.save(a);
 	}
 
 	//답변 조회
 	@Test
+	@Transactional
+	@Rollback(false)
 	void DataSearch(){
 		Answer a = answerRepository.findById(1).get();
 		assertThat(a.getContent()).isEqualTo("sbb는 질문답변 게시판을 말합니다.");
@@ -84,12 +96,15 @@ public class AnswerApplicationTests {
 	@Rollback(false)
 	void QuestionSearch(){
 		Question q = questionRepository.findById(1).get();
+		//Question question;
 		//DB 연결이 끊기는 문제가 발생함.
+
+		//동일 트랜잭션 내에서는 동일한 객체가 return된다.
 		List<Answer> answerList = q.getAnswerList();
 		//질문 하나에 답변이 하나만 존재하는 것은 아니기에 List<>를 기용함.
 		//=> Cannot invoke "java.util.List.size()" because "answerList" is null
 
-		assertThat(answerList.size()).isEqualTo(2);
+		assertThat(answerList.size()).isEqualTo(1);
 		assertThat(answerList.get(0).getContent()).isEqualTo("sbb는 질문답변 게시판을 말합니다.");
 	}
 }
